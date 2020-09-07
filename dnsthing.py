@@ -72,13 +72,36 @@ class hostRegistry (object):
             name = name[1:]
 
         if name in self.byname:
-            LOG.warn('not registering %s (%s): name already registered to %s',
-                     name, container['Id'], self.byname[name])
+            LOG.warning(
+                'not registering %s (%s): name already registered to %s',
+                name,
+                container['Id'],
+                self.byname[name]
+            )
             return
 
         if container['NetworkSettings'].get('Networks') is None:
-            LOG.warn('container %s (%s) has no network information',
-                     name, container['Id'])
+            LOG.warning(
+                'container %s (%s) has no network information',
+                name,
+                container['Id']
+            )
+            return
+
+        if container['Config'].get('Labels') is None:
+            LOG.warning(
+                'container %s (%s) has no labels',
+                name,
+                container['Id']
+            )
+            return
+
+        if 'dnsmasq' not in container['Config']['Labels'].keys():
+            LOG.warning(
+                'container %s (%s) has no dnsmasq label',
+                name,
+                container['Id']
+            )
             return
 
         this = {
@@ -87,13 +110,18 @@ class hostRegistry (object):
             'networks': {},
         }
 
+        network = container["Config"]["Labels"]["dnsmasq"]
+        if network not in container["NetworkSettings"]["Networks"].keys():
+            return
+
         self.byid[container['Id']] = this
         self.byname[name] = this
 
         for nwname, nw in container['NetworkSettings']['Networks'].items():
+            if nwname != network:
+                continue
             LOG.info('registering container %s network %s ip %s',
                      name, nwname, nw['IPAddress'])
-
             this['networks'][nwname] = nw['IPAddress']
 
         self.update_hosts()
@@ -122,8 +150,9 @@ class hostRegistry (object):
         with open(self.hostsfile, 'w') as fd:
             for name, data in self.byname.items():
                 for nwname, address in data['networks'].items():
-                    fd.write('%s %s.%s.%s\n' % (
-                        address, name, nwname, self.domain))
+                    if address:
+                        fd.write('%s %s %s.%s.%s\n' % (
+                            address, name, name, nwname, self.domain))
 
         if self.onupdate:
             self.onupdate()

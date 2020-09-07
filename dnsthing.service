@@ -3,7 +3,8 @@ Description=Manage dynamic dns for docker containers
 After=docker.service
 
 [Service]
-ExecStart=/usr/local/bin/dnsthing -c 'systemctl restart dnsmasq@infra' -H /run/infra/hosts/docker --verbose
+WorkingDirectory=/usr/local/bin/dnsthing
+ExecStart=/usr/local/bin/dnsthing/.venv/bin/python dnsthing.py -c 'systemctl restart dnsmasq' -H /run/dnsthing/docker --verbose
 Restart=always
 
 [Install]
